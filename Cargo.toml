@@ -1,6 +1,12 @@
 [package]
 name = "relations"
+description = "A lightweight library for working with mathematical binary relations."
+homepage = "https://github.com/jmaarleveld/rust-relations"
+repository = "https://github.com/jmaarleveld/rust-relations"
+documentation = "https://docs.rs/relations"
+readme = "README.md"
 version = "0.1.0"
+license = "Apache-2.0"
 edition = "2021"
 
 
