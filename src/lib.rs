@@ -150,6 +150,7 @@ pub use crate::relation::Relation;
 
 #[cfg(test)]
 mod test {
+    use std::collections::{HashMap, HashSet};
     use crate::Relation;
     use crate::relation;
 
@@ -447,5 +448,234 @@ mod test {
                 4 => 5
             )
         );
+    }
+
+    #[test]
+    fn test_relative_set() {
+        let rel_1 = relation!(1 => 2, 1 => 3, 2 => 3);
+        assert_eq!(rel_1.relative_set(&0), HashSet::new());
+        assert_eq!(rel_1.relative_set(&1), HashSet::from([2, 3]));
+        assert_eq!(rel_1.relative_set(&2), HashSet::from([3]));
+        assert_eq!(rel_1.relative_set(&3), HashSet::new());
+    }
+
+    #[test]
+    fn test_transpose() {
+        let rel: Relation<i32> = relation!();
+        assert_eq!(rel.transpose(), rel);
+
+        assert_eq!(
+            relation!(1 => 2, 2 => 3, 3 => 4).transpose(),
+            relation!(4 => 3, 3 => 2, 2 => 1)
+        );
+
+        assert_eq!(
+            relation!(1 => 1, 1 => 2, 2 => 3, 3 => 1, 5 => 6, 6 => 5).transpose(),
+            relation!(1 => 1, 2 => 1, 3 => 2, 1 => 3, 6 => 5, 5 => 6)
+        );
+    }
+
+    #[test]
+    fn test_equivalence_classes() {
+        let rel_1: Relation<i32> = relation!();
+        assert_eq!(rel_1.equivalence_classes(), Vec::new());
+
+        let rel_2 = relation!(1 => 1, 2 => 2, 3 => 3);
+        assert_eq!(
+            rel_2.equivalence_classes(),
+            vec![HashSet::from([1]), HashSet::from([2]), HashSet::from([3])]
+        );
+
+        let rel_3 = relation!(
+            1 => 2, 1 => 3, 1 => 4,
+            2 => 1, 3 => 1, 4 => 1,
+            2 => 4, 2 => 3,
+            3 => 2, 3 => 4,
+            4 => 2, 4 => 3,
+            1 => 1, 2 => 2, 3 => 3, 4 => 4
+        );
+        assert_eq!(
+            rel_3.equivalence_classes(),
+            vec![HashSet::from([1, 2, 3, 4])]
+        );
+
+        let rel_4 = relation!(
+            // Class 1
+            1 => 2, 2 => 1, 1 => 1, 2 => 2,
+
+            // Class 2
+            3 => 4, 4 => 3, 3 => 3, 4 => 4,
+
+            // Class 3
+            5 => 6, 5 => 7, 6 => 5, 7 => 5,
+            6 => 7, 7 => 6,
+            5 => 5, 6 => 6, 7 => 7
+        );
+        assert_eq!(
+            rel_4.equivalence_classes(),
+            vec![
+                HashSet::from([1, 2]),
+                HashSet::from([3, 4]),
+                HashSet::from([5, 6, 7]),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_strongly_connected_components() {
+        let rel_1: Relation<i32> = relation!();
+        assert_eq!(rel_1.strongly_connected_components(), Vec::new());
+
+        let rel_2 = relation!(
+            1 => 2,
+            2 => 3, 2 => 5,
+            3 => 4, 3 => 7,
+            4 => 3, 4 => 8,
+            5 => 6, 5 => 1,
+            6 => 7,
+            7 => 6,
+            8 => 4, 8 => 7
+        );
+        assert_eq!(
+            rel_2.strongly_connected_components(),
+            vec![
+                HashSet::from([1, 2, 5]),
+                HashSet::from([3, 4, 8]),
+                HashSet::from([6, 7]),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_is_reachable() {
+        let rel = relation!(
+             1 => 2, 2 => 3, 3 => 1,
+             4 => 5,
+             6 => 7, 7 => 8,
+             9 => 9
+        );
+
+        assert!(rel.reachable_from(&1, &2));
+        assert!(rel.reachable_from(&1, &3));
+        assert!(rel.reachable_from(&2, &3));
+        assert!(rel.reachable_from(&1, &1));
+        assert!(rel.reachable_from(&4, &5));
+        assert!(rel.reachable_from(&9, &9));
+        assert!(!rel.reachable_from(&1, &9));
+        assert!(!rel.reachable_from(&5, &4));
+    }
+
+    #[test]
+    fn test_connectivity_relation() {
+         let rel = relation!(
+             1 => 2, 2 => 3, 3 => 4,
+             4 => 2,
+             5 => 6, 6 => 5
+         );
+         assert_eq!(
+             rel.connectivity_relation(),
+             relation!(
+                 1 => 2, 1 => 3, 1 => 4,
+                 2 => 3, 2 => 4, 2 => 2,
+                 3 => 4, 3 => 2, 3 => 3,
+                 4 => 2, 4 => 3, 4 => 4,
+                 5 => 6, 6 => 5, 5 => 5, 6 => 6
+             )
+         );
+
+        let empty_rel: Relation<i32> = relation!();
+        assert_eq!(empty_rel.connectivity_relation(), relation!());
+    }
+
+    #[test]
+    fn test_to_hashmap() {
+         let rel = relation!(
+             1 => 2, 1 => 3, 2 => 3,
+             4 => 4,
+             5 => 6, 6 => 5
+         );
+         let map = HashMap::from_iter(
+             [
+                 (1, HashSet::from([2, 3])),
+                 (2, HashSet::from([3])),
+                 (4, HashSet::from([4])),
+                 (5, HashSet::from([6])),
+                 (6, HashSet::from([5])),
+             ]
+         );
+         assert_eq!(rel.to_hashmap(), map);
+
+        let empty_rel: Relation<i32> = relation!();
+        assert_eq!(empty_rel.to_hashmap(), HashMap::new());
+    }
+
+    #[test]
+    fn test_product() {
+        let empty: Relation<i32> = relation!();
+        let rel = relation!(1 => 2, 2 => 3);
+        let identity = relation!(1 => 1, 2 => 2, 3 => 3);
+        assert_eq!(empty.product(&rel), relation!());
+        assert_eq!(rel.product(&empty), relation!());
+        assert_eq!(rel.product(&rel), relation!(1 => 3));
+        assert_eq!(rel.product(&identity), rel);
+        assert_eq!(identity.product(&rel), rel);
+
+        let circular = relation!(1 => 2, 2 => 3, 3 => 4, 4 => 1);
+        assert_eq!(
+            circular.product(&circular),
+            relation!(1 => 3, 2 => 4, 3 => 1, 4 => 2)
+        );
+        assert_eq!(
+            circular.product(&rel),
+            relation!(1 => 3, 4 => 2)
+        );
+        assert_eq!(
+            rel.product(&circular),
+            relation!(1 => 3, 2 => 4)
+        );
+    }
+
+    #[test]
+    fn test_pow() {
+        let empty: Relation<i32> = relation!();
+        let rel = relation!(1 => 2, 2 => 3);
+        let identity = relation!(1 => 1, 2 => 2, 3 => 3);
+
+        assert_eq!(empty.pow(0), empty);
+        assert_eq!(empty.pow(1), empty);
+        assert_eq!(empty.pow(2), empty);
+
+        assert_eq!(identity.pow(0), identity);
+        assert_eq!(identity.pow(1), identity);
+        assert_eq!(identity.pow(2), identity);
+
+        assert_eq!(rel.pow(0), identity);
+        assert_eq!(rel.pow(1), rel);
+        assert_eq!(rel.pow(2), relation!(1 => 3));
+        assert_eq!(rel.pow(3), relation!());
+    }
+
+    #[test]
+    fn test_complement() {
+        let rel = relation!(1 => 2, 2 => 3, 3 => 4, 4 => 1);
+        assert_eq!(
+            rel.complement(),
+            relation!(
+                1 => 1, 2 => 2, 3 => 3, 4 => 4,
+                1 => 3, 1 => 4,
+                2 => 1, 2 => 4,
+                3 => 1, 3 => 2,
+                4 => 2, 4 => 3
+            )
+        );
+        assert_eq!(rel.complement().complement(), rel);
+    }
+
+    #[test]
+    fn test_is_function() {
+        let rel_1 = relation!(1 => 2, 2 => 3, 1 => 3, 3 => 4);
+        let rel_2 = relation!(1 => 2, 2 => 3, 3 => 4);
+        assert!(!rel_1.is_function());
+        assert!(rel_2.is_function());
     }
 }
