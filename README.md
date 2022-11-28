@@ -1,5 +1,8 @@
 # relations -- A lightweight Rust library for working with mathematical relations
 
+![Build](https://github.com/jmaarleveld/rust-relations/actions/workflows/build.yml/badge.svg)
+![Tests](https://github.com/jmaarleveld/rust-relations/actions/workflows/test.yml/badge.svg)
+
 The goal of this crate is to provide a basic and lightweight
 library for working with mathematical relations.
 
