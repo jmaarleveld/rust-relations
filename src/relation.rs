@@ -872,18 +872,23 @@ impl<U: Eq + Hash + Clone + Debug> Relation<U> {
     /// let linear = relation!(1 => 2, 2 => 3, 3 => 4, 4 => 5);
     /// let sort = linear.topological_sort();
     /// assert!(sort.is_some());
+    /// let order = sort.unwrap();
     /// assert!(
-    ///     sort.unwrap() == vec![1, 2, 3, 4, 5] || sort.unwrap() == vec![5, 4, 3, 2, 1]
+    ///     order == vec![1, 2, 3, 4, 5] ||
+    ///         order == vec![5, 4, 3, 2, 1],
+    ///     "simple: {:?}", order
     /// );
     ///
-    /// let complex = relation!(1 => 2, 1 => 3, 2 => 5, 2 => 4, 3 => 6, 3 => 4);
+    /// let complex = relation!(1 => 2, 1 => 3, 2 => 5, 2 => 4, 3 => 6, 3 => 4, 4 => 5, 4 => 6);
     /// let sort = complex.topological_sort();
     /// assert!(sort.is_some());
+    /// let order = sort.unwrap();
     /// assert!(
-    ///     sort.unwrap() == vec![1, 2, 3, 4, 5, 6] ||
-    ///     sort.unwrap() == vec![1, 3, 2, 4, 5, 6] ||
-    ///     sort.unwrap() == vec![1, 2, 3, 4, 6, 5] ||
-    ///     sort.unwrap() == vec![1, 3, 2, 4, 6, 5]
+    ///     order == vec![1, 2, 3, 4, 5, 6] ||
+    ///         order == vec![1, 3, 2, 4, 5, 6] ||
+    ///         order == vec![1, 2, 3, 4, 6, 5] ||
+    ///         order == vec![1, 3, 2, 4, 6, 5],
+    ///     "complex: {:?}", order
     /// );
     ///
     /// let cyclic = relation!(1 => 2, 2 => 3, 3 => 1);
@@ -891,7 +896,7 @@ impl<U: Eq + Hash + Clone + Debug> Relation<U> {
     /// assert!(sort.is_none());
     ///
     /// let self_loop = relation!(1 => 2, 2 => 2);
-    /// let sort = cyclic.topological_sort();
+    /// let sort = self_loop.topological_sort();
     /// assert!(sort.is_none());
     /// ```
     pub fn topological_sort(&self) -> Option<Vec<U>> {
