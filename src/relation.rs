@@ -959,12 +959,12 @@ impl<U: Eq + Hash + Clone + Debug> Eq for Relation<U> {}
 macro_rules! relation {
     () => {
         {
-            Relation::empty()
+            $crate::Relation::empty()
         }
     };
     ($($from:expr => $to:expr),*) => {
         {
-            Relation::from_iter(
+            $crate::Relation::from_iter(
                 [
                     $(
                           ($from, $to),
