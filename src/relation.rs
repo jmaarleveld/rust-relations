@@ -659,7 +659,7 @@ impl<U: Eq + Hash + Clone + Debug> Relation<U> {
     }
 
     fn dfs_1(v: usize,
-             graph: &mut HashMap<usize, Vec<usize>>,
+             graph: &mut HashMap<usize, HashSet<usize>>,
              visited: &mut Vec<bool>,
              stack: &mut Vec<usize>)
     {
@@ -667,9 +667,8 @@ impl<U: Eq + Hash + Clone + Debug> Relation<U> {
             visited[v] = true;
             let children = graph
                 .entry(v)
-                .or_insert_with(Vec::new)
-                .to_vec();
-            for child in children {
+                .or_insert_with(HashSet::new);
+            for child in children.iter().copied().collect::<Vec<_>>() {
                 Self::dfs_1(child, graph, visited, stack);
             }
             stack.push(v);
@@ -678,7 +677,7 @@ impl<U: Eq + Hash + Clone + Debug> Relation<U> {
 
     fn dfs_2(&self,
              v: usize,
-             graph: &mut HashMap<usize, Vec<usize>>,
+             graph: &mut HashMap<usize, HashSet<usize>>,
              visited: &mut Vec<bool>,
              group: &mut HashSet<U>)
     {
@@ -687,9 +686,8 @@ impl<U: Eq + Hash + Clone + Debug> Relation<U> {
             group.insert(self.backward_map[v].clone());
             let children = graph
                 .entry(v)
-                .or_insert_with(Vec::new)
-                .to_vec();
-            for child in children {
+                .or_insert_with(HashSet::new);
+            for child in children.iter().copied().collect::<Vec<_>>() {
                 self.dfs_2(child, graph, visited, group);
             }
         }
@@ -741,9 +739,8 @@ impl<U: Eq + Hash + Clone + Debug> Relation<U> {
                 visited[current] = true;
                 let children = graph
                     .entry(current)
-                    .or_insert_with(Vec::new)
-                    .to_vec();
-                for child in children {
+                    .or_insert_with(HashSet::new);
+                for child in children.iter().copied().collect::<Vec<_>>() {
                     connected_pairs.insert((start, child));
                     stack.push(child);
                 }
@@ -850,10 +847,152 @@ impl<U: Eq + Hash + Clone + Debug> Relation<U> {
         prod
     }
 
-    fn as_map(&self) -> HashMap<usize, Vec<usize>> {
-        let mut map: HashMap<usize, Vec<usize>> = HashMap::new();
+    /// Return a boolean indicating whether the relation
+    /// represents a DAG (directed acyclic graph).
+    ///
+    /// ```
+    /// use relations::relation;
+    ///
+    /// let loopy = relation!(1 => 2, 2 => 1);
+    /// assert!(!loopy.is_dag());
+    ///
+    /// let linear = relation!(1 => 2, 2 => 3, 3 => 4);
+    /// assert!(linear.is_dag());
+    /// ```
+    pub fn is_dag(&self) -> bool {
+        self.topological_sort().is_some()
+    }
+
+    /// Topologically sort the relation, or return None if the
+    /// relation contains a cycle.
+    ///
+    /// ```
+    /// use relations::relation;
+    ///
+    /// let linear = relation!(1 => 2, 2 => 3, 3 => 4, 4 => 5);
+    /// let sort = linear.topological_sort();
+    /// assert!(sort.is_some());
+    /// assert!(
+    ///     sort.unwrap() == vec![1, 2, 3, 4, 5] || sort.unwrap() == vec![5, 4, 3, 2, 1]
+    /// );
+    ///
+    /// let complex = relation!(1 => 2, 1 => 3, 2 => 5, 2 => 4, 3 => 6, 3 => 4);
+    /// let sort = complex.topological_sort();
+    /// assert!(sort.is_some());
+    /// assert!(
+    ///     sort.unwrap() == vec![1, 2, 3, 4, 5, 6] ||
+    ///     sort.unwrap() == vec![1, 3, 2, 4, 5, 6] ||
+    ///     sort.unwrap() == vec![1, 2, 3, 4, 6, 5] ||
+    ///     sort.unwrap() == vec![1, 3, 2, 4, 6, 5]
+    /// );
+    ///
+    /// let cyclic = relation!(1 => 2, 2 => 3, 3 => 1);
+    /// let sort = cyclic.topological_sort();
+    /// assert!(sort.is_none());
+    ///
+    /// let self_loop = relation!(1 => 2, 2 => 2);
+    /// let sort = cyclic.topological_sort();
+    /// assert!(sort.is_none());
+    /// ```
+    pub fn topological_sort(&self) -> Option<Vec<U>> {
+        let mut incoming: Vec<usize> = (0..self.backward_map.len())
+            .map(|_| 0).collect();
+        let mut order: Vec<usize> = Vec::new();
+        let graph = self.as_map();
+        for (_, destinations) in graph.iter() {
+            for destination in destinations {
+                incoming[*destination] += 1;
+            }
+        }
+
+        let mut todo = incoming.iter()
+            .enumerate()
+            .filter(|(_, c)| **c == 0)
+            .map(|(i, _)| i)
+            .collect::<Vec<_>>();
+        let empty = HashSet::new();
+        while !todo.is_empty() {
+            let current = todo.pop().unwrap();
+            order.push(current);
+            for to in graph.get(&current).unwrap_or(&empty).iter().copied() {
+                incoming[to] -= 1;
+                if incoming[to] == 0 {
+                    todo.push(to);
+                }
+            }
+        }
+
+        if incoming.iter().any(|c| *c > 0) {
+            None
+        } else {
+            let result = order
+                .into_iter()
+                .map(|i| self.backward_map[i].clone())
+                .collect();
+            Some(result)
+        }
+    }
+
+    /// Compute all cycles in the graph represented by the relation.
+    ///
+    /// ```
+    /// use relations::relation;
+    ///
+    /// let linear = relation!(1 => 2, 2 => 3, 3 => 4);
+    /// assert_eq!(linear.find_cycles(), Vec::<Vec<i32>>::new());
+    ///
+    /// let loopy = relation!(1 => 2, 2 => 1);
+    /// let cycles = loopy.find_cycles();
+    /// assert!(
+    ///     cycles == vec![vec![1, 2]] || cycles == vec![vec![2, 1]],
+    ///     "loopy: {:?}", cycles
+    /// );
+    /// ```
+    pub fn find_cycles(&self) -> Vec<Vec<U>> {
+        let graph = self.as_map();
+        let mut cycles = Vec::new();
+        let mut visited = (0..self.backward_map.len())
+            .into_iter()
+            .map(|_| false)
+            .collect::<Vec<_>>();
+        for start in 0..self.backward_map.len() {
+            if visited[start] {
+                continue;
+            }
+            let mut path = vec![start];
+            self.find_cycles_dfs(start, &graph, &mut visited, &mut path, &mut cycles);
+        }
+        cycles.into_iter().map(
+            |path|
+                path.into_iter().map(|i| self.backward_map[i].clone()).collect()
+        ).collect()
+    }
+
+    fn find_cycles_dfs(&self,
+                       current: usize,
+                       graph: &HashMap<usize, HashSet<usize>>,
+                       visited: &mut Vec<bool>,
+                       path: &mut Vec<usize>,
+                       cycles: &mut Vec<Vec<usize>>) {
+        visited[current] = true;
+        let empty = HashSet::new();
+        for to in graph.get(&current).unwrap_or(&empty).iter().copied() {
+            if visited[to] {
+                if let Some(index) = path.iter().position(|&x| x == to) {
+                    cycles.push(path[index..].to_vec());
+                }
+            } else if !visited[to] {
+                path.push(to);
+                self.find_cycles_dfs(to, graph, visited, path, cycles);
+                path.remove(path.len() - 1);
+            }
+        }
+    }
+
+    fn as_map(&self) -> HashMap<usize, HashSet<usize>> {
+        let mut map: HashMap<usize, HashSet<usize>> = HashMap::new();
         for (x, y) in self.relation.iter().copied() {
-            map.entry(x).or_insert_with(Vec::new).push(y);
+            map.entry(x).or_insert_with(HashSet::new).insert(y);
         }
         map
     }

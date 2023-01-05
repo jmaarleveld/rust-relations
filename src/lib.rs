@@ -678,4 +678,103 @@ mod test {
         assert!(!rel_1.is_function());
         assert!(rel_2.is_function());
     }
+
+    #[test]
+    fn test_topological_sort() {
+        let linear = relation!(1 => 2, 2 => 3, 3 => 4, 4 => 5);
+        let sort = linear.topological_sort();
+        assert!(sort.is_some());
+        let order = sort.unwrap();
+        assert!(
+            order == vec![1, 2, 3, 4, 5] ||
+                order == vec![5, 4, 3, 2, 1],
+            "simple: {:?}", order
+        );
+
+        let complex = relation!(1 => 2, 1 => 3, 2 => 5, 2 => 4, 3 => 6, 3 => 4, 4 => 5, 4 => 6);
+        let sort = complex.topological_sort();
+        assert!(sort.is_some());
+        let order = sort.unwrap();
+        assert!(
+            order == vec![1, 2, 3, 4, 5, 6] ||
+                order == vec![1, 3, 2, 4, 5, 6] ||
+                order == vec![1, 2, 3, 4, 6, 5] ||
+                order == vec![1, 3, 2, 4, 6, 5],
+            "complex: {:?}", order
+        );
+
+        let cyclic = relation!(1 => 2, 2 => 3, 3 => 1);
+        let sort = cyclic.topological_sort();
+        assert!(sort.is_none());
+
+        let self_loop = relation!(1 => 2, 2 => 2);
+        let sort = self_loop.topological_sort();
+        assert!(sort.is_none());
+    }
+
+    #[test]
+    fn test_is_dag() {
+        let loopy = relation!(1 => 2, 2 => 1);
+        assert!(!loopy.is_dag());
+
+        let linear = relation!(1 => 2, 2 => 3, 3 => 4);
+        assert!(linear.is_dag());
+
+        let tree = relation!(1 => 2, 2 => 3, 2 => 4, 1 => 5, 5 => 6, 5 => 7);
+        assert!(tree.is_dag());
+
+        let ring = relation!(1 => 2, 2 => 3, 3 => 4, 4 => 1);
+        assert!(!ring.is_dag());
+
+        let self_loop = relation!(1 => 2, 2 => 2);
+        assert!(!self_loop.is_dag());
+    }
+
+    #[test]
+    fn test_find_cycles() {
+        let linear = relation!(1 => 2, 2 => 3, 3 => 4);
+        assert_eq!(linear.find_cycles(), Vec::<Vec<i32>>::new());
+
+        let loopy = relation!(1 => 2, 2 => 1);
+        let cycles = loopy.find_cycles();
+        assert!(
+            cycles == vec![vec![1, 2]] || cycles == vec![vec![2, 1]],
+            "loopy: {:?}", cycles
+        );
+
+        let ring = relation!(1 => 2, 2 => 3, 3 => 4, 4 => 1);
+        let cycles = ring.find_cycles();
+        assert!(
+            cycles == vec![vec![1, 2, 3, 4]]
+                || cycles == vec![vec![2, 3, 4, 1]]
+                || cycles == vec![vec![3, 4, 2, 1]]
+                || cycles == vec![vec![4, 1, 2, 3]],
+            "ring: {:?}", cycles
+        );
+
+        let complex = relation!(
+            1 => 2,
+            2 => 3, 2 => 6,
+            3 => 2, 3 => 4, 4 => 7,
+            4 => 2, 4 => 5,
+            5 => 5,
+            6 => 7
+        );
+        let cycles = complex.find_cycles();
+        assert_eq!(cycles.len(), 3);
+        assert!(
+            cycles.contains(&vec![5]),
+            "complex 1: {:?}", cycles
+        );
+        assert!(
+            cycles.contains(&vec![2, 3]) || cycles.contains(&vec![3, 2]),
+            "complex 2: {:?}", cycles
+        );
+        assert!(
+            cycles.contains(&vec![2, 3, 4])
+                || cycles.contains(&vec![3, 4, 2])
+                || cycles.contains(&vec![4, 2, 3]),
+            "complex 3: {:?}", cycles
+        );
+    }
 }
